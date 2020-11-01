@@ -1,0 +1,117 @@
+---
+title: "Title of Your Report"
+author: "Names of your Group Members"
+date: "Due Date"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(brms)
+library(dplyr)
+
+# Loading in the cleaned survey Data
+survey_data <- read_csv("survey_data.csv")
+
+# Loading in the cleaned census Data
+census_data <- read_csv("census_data.csv")
+
+census_data<-rename(census_data,gender=sex)
+census_data<-select(census_data,gender,age,n)
+
+```
+
+# Logistic regression model in predicting 2020 American Federal election
+
+## Shu Liu
+## 2020/11/1
+
+
+# Model
+
+In this analysis, we are interested in predicting the vote outcome for the 2020 American federal election. To achieve our goal, we will use a logistic regression and a post-stratification technique. The reason of employing a logistic regression is that we are focusing a binary response variable(whether people will vote for Trump or not). To elaborate, we are interested in how demographic of a person will affect his willingness of voting for Trump. 
+
+In the following sub-sections I will describe the model and the post-stratification further. 
+
+
+## Model Specifics
+
+I will be using a logistic regression model to model the probability of voting for Donald Trump. The response variable is whether the voter will vote for Trump or not. The predictor variables will be the selected demographics, age and gender. The reason of choosing ages as a predictor variable rather than age groups is that age is a continuous numercial variable, dividing people into various age groups would be inaccurate, and thus we focus on the change of the probability for every increase in age. 
+
+The logistic regression model will be: 
+
+$$ \log(\frac{p}{1-p}) = \beta_0+\beta_1  x_{age} + \beta_2  x_{male} + \epsilon$$
+
+Where $p$ represents the probability of voting for Donald Trump. $\beta_0$ represents the intercept of the model, it means the probability of voting for Trump of a female voter at age 0. Additionally, $\beta_1$ and $\beta_2$ are the coefficients. They represent the change in log odds for every unit change in predictor variables, $x_{age}$ and $x_{male}$.
+
+
+## Post-Stratification 
+
+In order to estimate the probability of voting for Trump, a post-stratification analysis is performed. In this case, cells are created based on age and gender. By using the logistic regression model mentioned previously, an estimation of the probability at each gender and age will be conducted. 
+
+Post-stratification will help us to estimate the probability of the overall population. By dividing people into cells based on demographics and weighting each cells, we can estimate how the population will vote. 
+
+By using the census data, I will weight each probability estimate at each cell by the respective population size of that cell and sum those values and divide that by the entire population size. 
+
+
+# Results
+
+```{r,echo=FALSE}
+survey_data<-mutate(survey_data,gender=str_to_lower(gender))
+
+logit <- glm(vote_trump ~ age+as.factor(gender), data=survey_data,family='binomial')
+
+summary(logit)
+```
+
+```{r}
+census_data$logodds_estimate <-
+  logit %>%
+  predict(newdata=census_data)
+
+census_data$estimate <-
+  exp(census_data$logodds_estimate)/(1+exp(census_data$logodds_estimate))
+
+census_data
+
+census_data %>%
+  mutate(alp_predict_prop = estimate*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+```
+
+In this case, the population is divided into 190 cells based on age and gender. Each cell gives an estimate of the probability. The result of $$\hat{y}^{PS}$$ is 0.376. It shows the probability estimate of voting for Trump of the overall population. 
+
+# Discussion
+
+In the previous post-stratification section, we divided the population into various cells based on age and gender. The probabilities of voting for Trump are also differed in different cells. In addition, each cell occupies a certain proportion in the population. Consequently, we calculated the estimate of the overall population based on the estimate and proportion of each cell. The result is 0.376, which means a person who belongs to this population has a 37.6% probability to vote for Trump. 
+
+According to the current information, there are only two candidates in the election: Biden and Trump. So a 37.6% probability in voting for Trump means that people are more likely to vote for Biden, and thus we predict that Liberal will win the election. 
+
+## Weaknesses
+
+The analysis is based on an assumption: the response variable is binary, people will vote for either Trump or Biden. However, in the real election, people may choose to abstain. As a result, the calculated probability may not estimate the overall population properly. 
+
+Furthermore, besides the mentioned predictors in the analysis, there are more factors that may affect voting, such as ideology, employment status, education level, etc. Hence, the model that only considers age and gender may not be representative enough. 
+
+## Next Steps
+
+In the next steps, we will further evaluate and improve our model. As our model is a prediction, we can collect the actual results and dataset after the election. This will help us to identify the differences between predictions and the actual values. By analyzing the differences, we can further improve our model.
+
+Additionally, more predictors(such as education level, ideology) can be added into the model to make the model more complexed and accurate. We can collect more data with more variables to adjust this problem. 
+
+
+# References
+
+1.Paul-Christian Bürkner (2018). Advanced Bayesian Multilevel
+  Modeling with the R Package brms. The R Journal, 10(1),
+  395-411. doi:10.32614/RJ-2018-017
+
+2.Hadley Wickham, Romain Fran?ois, Lionel Henry and Kirill
+  Müller (2020). dplyr: A Grammar of Data Manipulation. R
+  package version 1.0.2.
+  https://CRAN.R-project.org/package=dplyr
+
+3.Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686, https://doi.org/10.21105/joss.01686
