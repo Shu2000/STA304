@@ -1,0 +1,172 @@
+---
+title: "Predicting prices of properties by multiple linear regression"
+author: 'Shu Liu'
+date: 'December 20, 2020 '
+output: pdf_document
+---
+```{r,echo=FALSE,message=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(tableone)
+library(dplyr)
+library(car)
+```
+
+
+# Abstract
+
+This paper is a general usage of multiple linear regression in prediciting the prices of properties. The following sections will generate a MLR model with several factors that affect price. We found that there is an overfitting problem, so removing redundancy is also included. 
+
+# Introduction
+
+COVID-19 imposes a negative influence on the lives of households. Because of the recession of the economy, households become more sensitive on the costs. The people who are planning to purchase properties are facing a problem of choosing properties with appropriate prices. The goal of this paper is to simulate a suitable model for households who are interested in properties trade. The model will help them to predict the prices of properties based on several dimensions, such as number of bathrooms, number of bedrooms, etc. The selected model is linear regression model since the dataset we will focus is numeric. 
+
+# Methodology
+
+## Data Wrangling
+
+In this paper, we are going to discover a model to predict the price of a house depends on a certain given factors. The dataset selected is from Kaggle, which gives a dataframe about the property informations in King County at 2015. 
+
+To clean this data, we firstly remove NA values from the dataset. Since some of the variables are redundant, we also remove these variables. Below is a Baseline Characteristics Table. 
+```{r,echo=FALSE}
+sales <- read.csv('hs.csv')
+
+sales<- na.omit(sales)
+
+sales<-mutate(sales, year=2015-yr_built)
+
+s <- select(sales, price, bedrooms, bathrooms, sqft_living, sqft_lot,condition,grade,waterfront,sqft_basement,year)
+
+table1 <- CreateTableOne(data=s)
+
+print(table1)
+```
+
+So in this case we have 21597 observations and 10 variables. 
+
+Price: The response variable that we are going to predict. 
+
+Bedrooms: The number of bedrooms in the house. 
+
+Bathrooms: The number of bathrooms. 
+
+sqft_living: The area of the home measured in square footage. 
+
+sqft_lot: The area of lot measured in square footage. 
+
+condition: How good the property is, measured from 1-10. 
+
+grade: The grade given to the home based on grading system. 
+
+waterfront: Dummy variable, whether the house has a view to a waterfront. If yes, it's 1, otherwise it's 0. 
+
+sqft_basement: The area of the basement measured in square footage.
+
+year: The total years experienced at 2015 since the house was built. 
+
+# Model
+
+The goal of this paper is to predict the prices of properties based on certain factors. Hence a multiple linear regression is appropriate with price as the response variable. The model can be interpreted mathematically as: $$price = \beta_0+\beta_1x_1+\beta_2x_2+\beta_3x_3+\beta_4x_4+...\beta_nx_n$$
+
+Here $\beta_0$ represents the intercept of the model. $x_n(n=1,2,3...)$represents the explanatory variables, currently we have 9 variables, so n=9 in this case. Correspondingly, $\beta_n()$ are the coefficients which stand for the influences imposed by explanatory variables on prices.
+
+However, 9 variables may result in a redundancy which causes an overfitting of the model. Thus, after the multiple linear regression, a procedure of selecting variables based on p-values and adjusted R^2 should be also conducted. 
+
+# Result
+
+## Regression Analysis
+
+```{r,echo=FALSE}
+m1<-lm(price~bedrooms+bathrooms+sqft_living+sqft_lot+condition+grade+sqft_basement+as.factor(waterfront)+year,s)
+
+summary(m1)
+
+```
+
+From the summary table, we can get a full model with all 9 explanatory variables, which can be expressed as: $$price=-1035000-42250x_1+55150x_2+174.3x_3-0.2542x_4+16730x_5+132500x_6+3.667x_7+720800x_8+3737x_9$$
+
+where: $x_1$ is the number of bedrooms, $x_2$ is the number of bathrooms, $x_3$ is the area of living, $x_4$ is the area of lot, $x_5$ is the condition, $x_6$ is the grade, $x_7$ is the area of basement, $x_8$ is whether there is a view of waterfront or not(1 for yes and 0 for no), $x_9$ is the years since the property is built. 
+
+The summary table provides a R^2 value: 0.6455, which suggests that about 64.55% of variation in the data is explained by the regression line. The global F-test is significant with a p-value less than 2.2e-16, it indicates that one or more of the variables contribute to the model. 
+
+## Predicators selection
+
+Before eliminating redundancy in the model, multicollinearity between predicators should be checked firstly to see if predicators are highly correlated with each other. Here we use variance inflation factor for checking. 
+
+```{r,echo=FALSE}
+vif(m1)
+```
+
+The analysis shows that all of the vif are less than 5. It suggests that multicollinearity doesn't exist. 
+
+The next step is to select appropriate predicators. In order to prevent overfitting problem, an AIC with backward direction procedure will be carried out. It will remove the predicators that is not significant(indicated by a large p-value). In addition, maximizing adjusted R^2 is also considered, so it will also remove the predicators that reduces adjusted R^2. 
+
+```{r,echo=FALSE,include=FALSE}
+m2<-step(m1, direction = 'backward')
+
+
+```
+```{r,echo=FALSE}
+summary(m2)
+```
+
+The final model generated by AIC can be written as: $$price=-1035000-42440x_1+55370x_2+175.4x_3-0.2567x_4+16980x_5+132100x_6+721300x_7+3749x_8$$
+
+where: $x_1$ is the number of bedrooms, $x_2$ is the number of bathrooms, $x_3$ is the area of living, $x_4$ is the area of lot, $x_5$ is the condition, $x_6$ is the grade, $x_7$ is is whether there is a view of waterfront or not(1 for yes and 0 for no), $x_8$ is the years since the property is built. 
+
+## Diagnostic Analysis
+
+To further evaluate whether the model is suitable for the data, diagnostic analysis will be processed. 
+
+```{r,echo=FALSE}
+par(mfrow=c(2,2))
+plot(m2)
+```
+
+The four plots will help to identify whether assumptions of linear regression are held or not. In the first plot, there is a random pattern, so residuals are uncorrelated. 
+
+In the normal qqplot, residuals are roughly distributed in normal distribution. However, there is an heavy tail in the right, those points may need to be considered as outliers. 
+
+The scale-location shows an increasing trend of the variances of errors. This indicates that the assumption of constant variance in SLR is violated. 
+
+The cook's distance diagram suggests three noteworthy outliers, case 7246, 3911 and 15857. These can be considered as influential points that impose negative effects on the fitted line. 
+
+# Discussion
+
+## Summary
+
+In this report, we generate a prediction model for the prices of houses in King County. After manipulating dataset, 10 variables were generated with price as the response variable. A MLR method is carried out to get a fitted model for the prediction. To remove redundancy, AIC was processed and removed variable sqft_basement from the final model. 
+
+## Conclusion
+
+After all, the final model fitted by MLR is $$price=-1035000-42440x_1+55370x_2+175.4x_3-0.2567x_4+16980x_5+132100x_6+721300x_7+3749x_8$$
+
+The coefficients represents how the price will change when the predicators are changed. For instance, when holding other predicators unchanged, one unit increase in bedrooms will result in a 42440 decrease in the price. 
+
+By this model, we can see that the predicators bedroom, lotsize provides a negative influence on the price of house. The predicators bathroom, area of living, condition, grade, view of waterfront and years since completion impose positive effects o n the price. 
+
+## Weekness & Next steps
+
+In the diagnostic analysis, we see that the assumption of constant variance in linear regression is violated. Meanwhile, there are some noteworthy outliers indicated in cook's distance plot. To improve our model, a weighted least square method can be taken to get a constant variance of errors. Indicated outliers, such as case 7246, 3911 and 15857 can be removed to further improve the fitted line. 
+
+In addition, the dataset is collected in 2015, which may lose its value in predicting current prices of houses. Hence, we should enlarge our data size and gather recent data of houses to check whether the model is still appropriate. 
+
+# Reference
+
+1. https://www.kaggle.com/sandeepchoudharygur/house-sales-in-king-county-usa-ibm-course/data
+
+2. H. Wickham. ggplot2: Elegant Graphics for Data Analysis.
+  Springer-Verlag New York, 2016.
+
+3.  Kazuki Yoshida and Alexander Bartel (2020). tableone: Create 'Table
+  1' to Describe Baseline Characteristics with or without Propensity
+  Score Weights. R package version 0.12.0.
+  https://CRAN.R-project.org/package=tableone
+
+4. John Fox and Sanford Weisberg (2019). An {R} Companion to Applied
+  Regression, Third Edition. Thousand Oaks CA: Sage. URL:
+  https://socialsciences.mcmaster.ca/jfox/Books/Companion/
+
+5. Hadley Wickham, Romain Fran?ois, Lionel Henry and Kirill Müller
+  (2020). dplyr: A Grammar of Data Manipulation. R package version
+  1.0.2. https://CRAN.R-project.org/package=dplyr
